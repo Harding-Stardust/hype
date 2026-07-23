@@ -22,7 +22,7 @@ Long-running code will block IDA's UI for their duration while they run on the m
 
 from __future__ import annotations
 
-__version__ = "2026-07-23 01:28:01"
+__version__ = "2026-07-23 15:50:01"
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2026"
@@ -37,6 +37,7 @@ import os
 import json
 import signal
 import asyncio
+import inspect
 import threading
 import socket
 import traceback
@@ -229,6 +230,63 @@ class MainThreadKernel(IPythonKernel):
             return l_result
         except Exception:
             community_base.log_print(f"cell execution failed on IDA's main thread\n{traceback.format_exc()}", arg_type="ERROR")
+            raise
+
+    async def do_complete(self, code: str, cursor_pos: int) -> dict[str, Any]:
+        # Tab-completion. IPython's completer can end up touching live IDA/SWIG
+        # objects (attribute lookups etc.) while building completion candidates,
+        # which is only safe from IDA's main thread - same reasoning as do_execute.
+        arg_code: str = code
+        arg_cursor_pos: int = cursor_pos
+
+        def run_complete_sync() -> dict[str, Any]:
+            # IPythonKernel.do_complete is a coroutine function on some ipykernel
+            # versions and a plain sync method on others - handle both.
+            l_result = IPythonKernel.do_complete(self, arg_code, arg_cursor_pos)
+            if inspect.isawaitable(l_result):
+                return _run_coroutine_on_main_thread(l_result)
+            return l_result
+
+        try:
+            return run_on_main_thread(run_complete_sync)
+        except Exception:
+            community_base.log_print(f"do_complete failed on IDA's main thread\n{traceback.format_exc()}", arg_type="ERROR")
+            raise
+
+    async def do_inspect(
+        self,
+        code: str,
+        cursor_pos: int,
+        detail_level: int = 0,
+        omit_sections: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        # Object inspection (e.g. the '?'/'??' operator, hover/tooltip info in
+        # some clients, and completion-adjacent introspection). Same main-thread
+        # requirement as do_execute/do_complete - IPython's inspector walks
+        # attributes on the target object, which can be an IDA/SWIG object.
+        arg_code: str = code
+        arg_cursor_pos: int = cursor_pos
+        arg_detail_level: int = detail_level
+        arg_omit_sections: tuple[str, ...] = omit_sections
+
+        def run_inspect_sync() -> dict[str, Any]:
+            # Same story as do_complete - IPythonKernel.do_inspect is async on
+            # some ipykernel versions, plain sync on others.
+            l_result = IPythonKernel.do_inspect(
+                self,
+                arg_code,
+                arg_cursor_pos,
+                arg_detail_level,
+                arg_omit_sections,
+            )
+            if inspect.isawaitable(l_result):
+                return _run_coroutine_on_main_thread(l_result)
+            return l_result
+
+        try:
+            return run_on_main_thread(run_inspect_sync)
+        except Exception:
+            community_base.log_print(f"do_inspect failed on IDA's main thread\n{traceback.format_exc()}", arg_type="ERROR")
             raise
 
 g_app: IPKernelApp | None = None
