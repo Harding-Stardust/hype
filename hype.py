@@ -11,18 +11,12 @@ If you want to use a widget, you can use the plugin named "hype_qtconsole.py" to
 Requirements:
 pip install --upgrade ipykernel
 
-ARCHITECTURE
-------------
-The kernel's networking (zmq sockets, message dispatch, heartbeat) runs on a background thread, same as a normal out-of-process kernel would.
-But IDA's API (idc/idaapi/ida_*, and anything built on it, like community_base) can only be called safely from IDA's main thread. So MainThreadKernel below
-overrides cell execution to hop onto IDA's main thread (via idaapi.execute_sync) for the actual work, then hop back. This happens automatically for every cell - no need to wrap individual calls.
-
 Long-running code will block IDA's UI for their duration while they run on the main thread, exactly like any other synchronous IDA script.
 """
 
 from __future__ import annotations
 
-__version__ = "2026-07-23 15:50:01"
+__version__ = "2026-09-01 22:45:01"
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2026"
@@ -47,7 +41,7 @@ from typing import Any, Optional, TypeVar
 try:
     import community_base  # https://github.com/Harding-Stardust/community_base
 except Exception:
-    print(f"Failed to import community_base. You need to install it from https://github.com/Harding-Stardust/community_base", arg_type="ERROR")
+    print(f"Failed to import community_base. You need to install it from https://github.com/Harding-Stardust/community_base")
     raise
 
 try:
@@ -162,7 +156,8 @@ def run_on_main_thread(
             l_box["exc"] = arg_exc
         return 1
 
-    community_base._ida_kernwin.execute_sync(runner, community_base._ida_kernwin.MFF_WRITE)
+    community_base._idaapi_execute_sync(runner, community_base._ida_kernwin.MFF_WRITE)
+    
     if "exc" in l_box:
         raise l_box["exc"]
     return l_box["result"]
@@ -320,13 +315,8 @@ def _local_rc_path() -> Optional[str]:
     """
     Path to the per-IDB hyperc.py, sitting next to the currently open database. Returns None if there is no known idb path (e.g. no database open yet), in which case the local rc file is skipped.
     """
-    try:
-        l_idb_path: str = community_base.input_file.idb_path
-    except Exception:
-        community_base.log_print(f"could not determine idb path for local rc file lookup\n{traceback.format_exc()}", arg_type="WARNING")
-        return None
-    if not l_idb_path:
-        return None
+
+    l_idb_path: str = community_base.input_file.idb_path
     return os.path.join(os.path.dirname(l_idb_path), g_rc_filename)
 
 def hype_reload_rc_files() -> None:
@@ -336,7 +326,7 @@ def hype_reload_rc_files() -> None:
     hype_reload_rc_files()
     """
     if g_app is None or g_app.kernel is None:
-        community_base.log_print("hype_reload_rc_files() called but no kernel is running", arg_type="WARNING")
+        community_base.log_print("hype_reload_rc_files() called but no kernel is running", arg_type="ERROR")
         return
 
     l_user_ns: dict[str, Any] = g_app.kernel.shell.user_ns
@@ -369,7 +359,7 @@ def _run_kernel() -> None:
             community_base.log_print(f"HYPE: default port {g_default_shell_port} was taken - using port block {l_base_port} and connection file {g_connection_file}", arg_type="INFO")
 
         os.makedirs(os.path.dirname(g_connection_file), exist_ok=True)
-        community_base.log_print(f"creating IPKernelApp instance on base port {l_base_port}", arg_type="DEBUG")
+        community_base.log_print(f"Creating IPKernelApp instance on base port {l_base_port}", arg_type="DEBUG")
         l_app: IPKernelApp = IPKernelApp.instance(
             connection_file=g_connection_file,
             ip=g_bind_ip,
@@ -382,20 +372,20 @@ def _run_kernel() -> None:
             kernel_class=MainThreadKernel,
         )
 
-        community_base.log_print("calling app.initialize()", arg_type="DEBUG")
+        # community_base.log_print("calling app.initialize()", arg_type="DEBUG")
         l_app.initialize(argv=[])
-        community_base.log_print("app.initialize() returned OK", arg_type="DEBUG")
+        # community_base.log_print("app.initialize() returned OK", arg_type="DEBUG")
         
         l_app.session.key = secrets.token_hex(32).encode() if g_use_auth else b""
         l_app.write_connection_file()  # persist the fixed ip/ports/key to disk
-        community_base.log_print(f"wrote connection file to {l_app.connection_file}", arg_type="DEBUG")
+        community_base.log_print(f"Wrote connection file to {l_app.connection_file}", arg_type="DEBUG")
 
         try:
             with open(l_app.connection_file, encoding="utf-8") as l_f:
                 l_actual: dict[str, Any] = json.load(l_f)
-            community_base.log_print(f"connection file contents: {json.dumps(l_actual)}", arg_type="INFO")
+            community_base.log_print(f"Connection file contents: {json.dumps(l_actual)}", arg_type="INFO")
         except Exception:
-            community_base.log_print(f"could not read back connection file for verification\n{traceback.format_exc()}", arg_type="ERROR")
+            community_base.log_print(f"Could not read back connection file for verification\n{traceback.format_exc()}", arg_type="ERROR")
 
         g_app = l_app
 
@@ -425,28 +415,17 @@ def start_kernel() -> None:
     if g_kernel_thread is not None and g_kernel_thread.is_alive():
         community_base.log_print("start_kernel() called but a kernel thread is already running", arg_type="WARNING")
         return
-    community_base.log_print("starting kernel thread", arg_type="INFO")
+    community_base.log_print("Starting kernel thread", arg_type="INFO")
     g_kernel_thread = threading.Thread(target=_run_kernel, name="ida-jupyter-kernel", daemon=True)
     g_kernel_thread.start()
 
-
 def stop_kernel() -> None:
-    """ The kernel thread is a daemon thread; it'll be torn down with IDA.
-    There isn't a clean cross-thread shutdown wired up here (yet), so
-    this mostly exists as a log breadcrumb / hook for future use.
-
-    We do clean up our own PID-variant connection file here (if we created
-    one), since those would otherwise accumulate as stale files across IDA
-    restarts. The default hype_jupyter_connection.json is left alone since
-    it gets overwritten identically by the next default-port instance anyway.
+    """ The kernel thread is a daemon thread; it'll be torn down with IDA.    
     """
-    # TODO: Implement a clean cross-thread shutdown.
-    community_base.log_print("stop_kernel() called", arg_type="INFO")
+    community_base.log_print("stop_kernel() called", arg_type="DEBUG")
     
-    try:
+    if g_connection_file:
         os.remove(g_connection_file)
-    except OSError:
-        community_base.log_print(f"failed to remove connection file {g_connection_file}\n{traceback.format_exc()}", arg_type="WARNING")
 
 class hype_plugmod_t(community_base._ida_idaapi.plugmod_t):
     ''' This is the code that is actually run. Starting the kernel here is the PLUGIN_MULTI equivalent of the old plugin_t.init(). '''

@@ -14,7 +14,7 @@ Edit > Plugins > HYPE Qt Console (default hotkey: Ctrl-Alt-J)
 
 from __future__ import annotations
 
-__version__ = "2026-07-23 15:50:01"
+__version__ = "2026-09-01 22:45:01"
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2026"
@@ -25,34 +25,22 @@ __email__ = "not.at.the.moment@example.com"
 __status__ = "Development"
 __url__ = "https://github.com/Harding-Stardust/hype"
 
-import os
+import os as _os
 from typing import Optional
 
 try:
     import community_base  # https://github.com/Harding-Stardust/community_base
 except Exception:
-    print(f"Failed to import community_base. You need to install it from https://github.com/Harding-Stardust/community_base", arg_type="ERROR")
+    print(f"Failed to import community_base. You need to install it from https://github.com/Harding-Stardust/community_base")
     raise
 
-# ida_kernwin.PluginForm.FormToPySideWidget()/TWidgetToPySideWidget() are
-# broken in this IDA 9.4 build under PySide6/Qt6: internally they
-# unconditionally call `ctx.QtGui.QWidget.FromCapsule(tw)`, which is a
-# PyQt5/SIP-only method that does not exist on PySide6's QWidget (PySide6
-# uses Shiboken, not SIP) -- see IDAPython source for TWidgetToPySideWidget:
-# https://github.com/idapython/src/blob/master/pywraps/py_kernwin_plgform.py
-#
-# Despite its name, PluginForm.FormToPyQtWidget() (an alias of
-# TWidgetToQtPythonWidget) is the one that's actually PySide6-correct: it
-# tries `shiboken6.Shiboken.wrapInstance(...)` first and only falls back to
-# PyQt5/SIP if shiboken6 isn't importable. We use that one instead.
-
-from PySide6 import QtWidgets
+from PySide6 import QtWidgets # type: ignore[import-untyped]
 
 try:
-    import qtconsole.styles
-    from qtconsole.client import QtKernelClient
-    from qtconsole.manager import QtKernelManager
-    from qtconsole.rich_jupyter_widget import RichJupyterWidget
+    import qtconsole.styles # type: ignore[import-untyped]
+    from qtconsole.client import QtKernelClient # type: ignore[import-untyped]
+    from qtconsole.manager import QtKernelManager # type: ignore[import-untyped]
+    from qtconsole.rich_jupyter_widget import RichJupyterWidget # type: ignore[import-untyped]
     _G_QTCONSOLE_IMPORT_ERROR: Optional[BaseException] = None
 except ImportError as arg_import_error:  # pragma: no cover - environment dependent
     qtconsole = None  # type: ignore[assignment]
@@ -67,7 +55,7 @@ except ImportError as arg_import_error:  # pragma: no cover - environment depend
 # --------------------------------------------------------------------------
 _G_USE_DARK_STYLE: bool = True # Set to False to use qtconsole's default light theme instead.
 
-g_connection_file: str = os.path.join(community_base.ida_user_dir(), "hype_jupyter_connection.json")
+g_connection_file: str = _os.path.join(community_base.ida_user_dir(), "hype_jupyter_connection.json")
 
 def _resolve_connection_file() -> str:
     """
@@ -76,8 +64,8 @@ def _resolve_connection_file() -> str:
     process already held the default port). Otherwise fall back to the
     default connection file.
     """
-    l_pid_variant: str = os.path.join(community_base.ida_user_dir(), f"hype_jupyter_connection_{os.getpid()}.json")
-    if os.path.isfile(l_pid_variant):
+    l_pid_variant: str = _os.path.join(community_base.ida_user_dir(), f"hype_jupyter_connection_{_os.getpid()}.json")
+    if _os.path.isfile(l_pid_variant):
         return l_pid_variant
     return g_connection_file
 
@@ -107,7 +95,8 @@ class JupyterConsoleForm(community_base._ida_kernwin.PluginForm):
         """Build the layout and attempt to connect to the kernel."""
         l_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout()
         l_layout.setContentsMargins(0, 0, 0, 0)
-        self.parent_widget.setLayout(l_layout)
+        if self.parent_widget is not None:
+            self.parent_widget.setLayout(l_layout)
 
         if RichJupyterWidget is None:
             l_message: str = f"qtconsole is not installed in IDA's Python environment. Import error: {_G_QTCONSOLE_IMPORT_ERROR} Install it with: pip install --upgrade qtconsole jupyter_client"
@@ -156,7 +145,7 @@ class JupyterConsoleForm(community_base._ida_kernwin.PluginForm):
         """
         self.connection_file_path = _resolve_connection_file()
 
-        if not os.path.isfile(self.connection_file_path):
+        if not _os.path.isfile(self.connection_file_path):
             raise FileNotFoundError(f"Connection file not found: {self.connection_file_path}")
 
         community_base.log_print(f"Connecting to kernel using connection file: {self.connection_file_path}", arg_type="INFO")
@@ -173,6 +162,7 @@ class JupyterConsoleForm(community_base._ida_kernwin.PluginForm):
 
     def OnClose(self, arg_form: community_base._ida_kernwin.TWidget) -> None:
         """Called by IDA when the form is closed; tear down channels."""
+        del arg_form # Not used but needed in prototype
         community_base.log_print("Closing Jupyter console form", arg_type="DEBUG")
         if self.kernel_client is not None:
             try:
