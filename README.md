@@ -18,7 +18,7 @@ IDA's built-in Python console is fine for one-liners but has no real tab complet
 ## Architecture
 
 - `hype.py` starts an `ipykernel` on a background thread with fixed, predictable ports, and writes a standard Jupyter connection file so any Jupyter client can attach.
-- IDA's API is only safe to call from IDA's *main* thread. The kernel's networking (zmq, message dispatch, heartbeat) has to stay on its own thread. `MainThreadKernel` bridges this: every cell you execute is transparently hopped over to IDA's main thread via `idaapi.execute_sync()`, run there, and the result is hopped back — no manual wrapping needed in your own code.
+- IDA's API is only safe to call from IDA's *main* thread. The kernel's networking (zmq, message dispatch, heartbeat) has to stay on its own thread. `MainThreadKernel` bridges this: every cell you execute is transparently hopped over to IDA's main thread via `community_base.idaapi_execute_sync()`, run there, and the result is hopped back so there is no manual wrapping needed in your own code.
 - Because of this, long-running cells block IDA's UI for their duration, exactly like any other synchronous IDA script would.
 - `hype_qtconsole.py` never starts a kernel itself. It just loads a connection file and opens a `qtconsole` client against whatever kernel `hype.py` already has running, the same thing `jupyter console --existing <file>` does, but docked inside IDA.
 
@@ -43,7 +43,7 @@ Both are `exec()`'d directly into the kernel's own namespace, so anything they d
 
 ## Requirements
 
-- IDA Pro 9.x (atm only tested on 9.4), with IDA's bundled Python (3.14) on Windows 10. It should however work on anything that [community_base](https://github.com/Harding-Stardust/community_base) works on hopefully.
+- IDA Pro 9.x (atm only tested on 9.4), with IDA's bundled Python (3.14) on Windows 10.
 - [community_base](https://github.com/Harding-Stardust/community_base) required by both plugins since it is my glue between my code and IDAs Python API.
 - `hype.py`:
   ```
@@ -60,8 +60,8 @@ Make sure you are installing the packages in the virtual environment that IDA is
 
 Drop `hype.py` (and, optionally, `hype_qtconsole.py`) into your IDA plugins folder, e.g.:
 
-```
-%APPDATA%\Hex-Rays\IDA Pro\plugins\
+```python
+import idaapi; print(idaapi.get_ida_subdirs("plugins")[0]) # On Windows that is %APPDATA%\Hex-Rays\IDA Pro\plugins\
 ```
 
 Restart IDA. `hype.py` starts its kernel automatically when it loads.

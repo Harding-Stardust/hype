@@ -16,14 +16,14 @@ Long-running code will block IDA's UI for their duration while they run on the m
 
 from __future__ import annotations
 
-__version__ = "2026-09-01 22:45:01"
+__version__ = "2026-09-04 01:12:57"
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2026"
 __credits__ = ["https://github.com/eset/ipyida"]
 __license__ = "GPL 3.0"
 __maintainer__ = "Harding"
-__email__ = "not.at.the.moment@example.com" 
+__email__ = "not.at.the.moment@example.com"
 __status__ = "Development"
 __url__ = "https://github.com/Harding-Stardust/hype"
 
@@ -67,7 +67,7 @@ g_port_search_step: int = 1000
 g_port_search_max_attempts: int = 20
 g_port_span: int = 5  # shell, iopub, stdin, hb, control
 
-# These are resolved at kernel startup time in _run_kernel(), since which port block (and therefore which connection file) 
+# These are resolved at kernel startup time in _run_kernel(), since which port block (and therefore which connection file)
 # we end up on depends on whether another HYPE instance is already running in another IDA process.
 g_connection_file: str | None = None
 g_shell_port: int | None = None
@@ -156,8 +156,9 @@ def run_on_main_thread(
             l_box["exc"] = arg_exc
         return 1
 
+    # TODO: Should I use idc.batch() here?
     community_base._idaapi_execute_sync(runner, community_base._ida_kernwin.MFF_WRITE)
-    
+
     if "exc" in l_box:
         raise l_box["exc"]
     return l_box["result"]
@@ -375,7 +376,7 @@ def _run_kernel() -> None:
         # community_base.log_print("calling app.initialize()", arg_type="DEBUG")
         l_app.initialize(argv=[])
         # community_base.log_print("app.initialize() returned OK", arg_type="DEBUG")
-        
+
         l_app.session.key = secrets.token_hex(32).encode() if g_use_auth else b""
         l_app.write_connection_file()  # persist the fixed ip/ports/key to disk
         community_base.log_print(f"Wrote connection file to {l_app.connection_file}", arg_type="DEBUG")
@@ -420,10 +421,10 @@ def start_kernel() -> None:
     g_kernel_thread.start()
 
 def stop_kernel() -> None:
-    """ The kernel thread is a daemon thread; it'll be torn down with IDA.    
+    """ The kernel thread is a daemon thread; it'll be torn down with IDA.
     """
     community_base.log_print("stop_kernel() called", arg_type="DEBUG")
-    
+
     if g_connection_file:
         os.remove(g_connection_file)
 
@@ -452,7 +453,7 @@ class hype_plugin_t(community_base._ida_idaapi.plugin_t):
     flags = community_base._ida_idaapi.PLUGIN_MULTI  # if this flag is set, then init have to return a ida_idaapi.plugmod_t()
     comment = f"HYPE (Here's Your Python Executor) - A Jupyter Kernel for IDA Pro. Version {__version__}"
     help = f'Connect from a host with: jupyter console --existing "{os.path.join(community_base.ida_user_dir(), "hype_jupyter_connection.json")}" (or the PID-specific variant if the default port was taken)'
-    wanted_name = f"HYPE"
+    wanted_name = "HYPE"
     wanted_hotkey = ""
 
     def init(self) -> Optional[community_base._ida_idaapi.plugmod_t]:
