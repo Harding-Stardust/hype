@@ -14,7 +14,7 @@ Edit > Plugins > HYPE Qt Console (default hotkey: Ctrl-Alt-J)
 
 from __future__ import annotations
 
-__version__ = "2026-09-04 01:12:57"
+__version__ = "2026-09-15 10:47:01"
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2026"
@@ -31,7 +31,7 @@ from typing import Optional
 try:
     import community_base  # https://github.com/Harding-Stardust/community_base
 except Exception:
-    print(f"Failed to import community_base. You need to install it from https://github.com/Harding-Stardust/community_base")
+    print(f"{__file__}: Failed to import community_base. You need to install it from https://github.com/Harding-Stardust/community_base")
     raise
 
 from PySide6 import QtWidgets # type: ignore[import-untyped]
@@ -210,7 +210,7 @@ class JupyterConsolePlugmod(community_base._ida_idaapi.plugmod_t):
 class JupyterConsolePlugin(community_base._ida_idaapi.plugin_t):
     flags = community_base._ida_idaapi.PLUGIN_MULTI
     comment = f"HYPE Qt Console - A Rich Jupyter console connected to an existing kernel. Version {__version__}"
-    help = 'Opens a window inside IDA Pro that connects to the ipykernel started by this IDA Pro'
+    help = 'Opens a window insida IDA Pro that connects to the ipykernel started by this IDA Pro'
     wanted_name = "HYPE Qt Console"
     wanted_hotkey = "Ctrl-Alt-J"
 

@@ -16,13 +16,7 @@ Long-running code will block IDA's UI for their duration while they run on the m
 
 from __future__ import annotations
 
-# TODO: This plugin does NOT work when working with ida_domain from inside an already started jupyter-console:
-# jupyter-console.exe
-# import ida_domain
-# db = ida_domain.Database.open(r"e:/Download/ida_files/tests/appinfo2.dll.i64")
-
-
-__version__ = "2026-09-04 01:12:57"
+__version__ = "2026-09-15 10:47:01"
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2026"
@@ -34,6 +28,7 @@ __status__ = "Development"
 __url__ = "https://github.com/Harding-Stardust/hype"
 
 import os
+import sys
 import json
 import signal
 import asyncio
@@ -47,7 +42,7 @@ from typing import Any, Optional, TypeVar
 try:
     import community_base  # https://github.com/Harding-Stardust/community_base
 except Exception:
-    print(f"Failed to import community_base. You need to install it from https://github.com/Harding-Stardust/community_base")
+    print(f"{__file__}: Failed to import community_base. You need to install it from https://github.com/Harding-Stardust/community_base")
     raise
 
 try:
@@ -59,6 +54,7 @@ except Exception:
     community_base.log_print(f"failed to import ipykernel - it is probably not installed: pip install --upgrade ipykernel\n{traceback.format_exc()}", arg_type="ERROR")
     raise
 
+_G_IDAPYTHON_VERSION: Optional[str] = getattr(sys.modules.get("__main__"), "IDAPYTHON_VERSION", None) if sys.modules.get("__main__") is not None else None
 community_base.log_print("all imports OK, module ready", arg_type="INFO")
 
 # ------------------------
@@ -381,6 +377,7 @@ def _run_kernel() -> None:
 
         # community_base.log_print("calling app.initialize()", arg_type="DEBUG")
         l_app.initialize(argv=[])
+        _restore_idapython_marker()
         # community_base.log_print("app.initialize() returned OK", arg_type="DEBUG")
 
         l_app.session.key = secrets.token_hex(32).encode() if g_use_auth else b""
@@ -419,9 +416,18 @@ def _run_kernel() -> None:
 def start_kernel() -> None:
     global g_kernel_thread
 
+    if IPKernelApp.initialized():
+        # The singleton state on IPKernelApp lives in the ipykernel module, which stays cached in
+        # sys.modules for the lifetime of the process. hype.py's own globals (g_kernel_thread) can
+        # get reset when ida_domain opens a new database in the same process, so g_kernel_thread
+        # alone is not a reliable "already started" check. Trust the singleton instead.
+        community_base.log_print("start_kernel() called but IPKernelApp is already initialized in this process, skipping", arg_type="WARNING")
+        return
+
     if g_kernel_thread is not None and g_kernel_thread.is_alive():
         community_base.log_print("start_kernel() called but a kernel thread is already running", arg_type="WARNING")
         return
+
     community_base.log_print("Starting kernel thread", arg_type="INFO")
     g_kernel_thread = threading.Thread(target=_run_kernel, name="ida-jupyter-kernel", daemon=True)
     g_kernel_thread.start()
@@ -433,6 +439,24 @@ def stop_kernel() -> None:
 
     if g_connection_file:
         os.remove(g_connection_file)
+
+def _restore_idapython_marker() -> None:
+    ''' ipykernel replaces sys.modules["__main__"] with its own user-namespace module during
+        IPKernelApp.initialize(), which wipes the IDAPYTHON_VERSION attribute that some
+        third party code (correctly) uses to detect "already hosted inside IDA".
+        Restore it so those checks keep working from inside the Jupyter kernel too.
+    '''
+    if _G_IDAPYTHON_VERSION is None:
+        return  # We were not inside a real IDAPython session ourselves, nothing to restore
+
+    l_main = sys.modules.get("__main__")
+    if l_main is None:
+        return
+
+    if getattr(l_main, "IDAPYTHON_VERSION", None) is not None:
+        return  # Already present, do not overwrite it
+
+    l_main.IDAPYTHON_VERSION = _G_IDAPYTHON_VERSION  # type: ignore[attr-defined] # Restore the marker other tools rely on
 
 class hype_plugmod_t(community_base._ida_idaapi.plugmod_t):
     ''' This is the code that is actually run. Starting the kernel here is the PLUGIN_MULTI equivalent of the old plugin_t.init(). '''
