@@ -210,7 +210,7 @@ class JupyterConsolePlugmod(community_base._ida_idaapi.plugmod_t):
 class JupyterConsolePlugin(community_base._ida_idaapi.plugin_t):
     flags = community_base._ida_idaapi.PLUGIN_MULTI
     comment = f"HYPE Qt Console - A Rich Jupyter console connected to an existing kernel. Version {__version__}"
-    help = 'Opens a window insida IDA Pro that connects to the ipykernel started by this IDA Pro'
+    help = 'Opens a window inside IDA Pro that connects to the ipykernel started by this IDA Pro'
     wanted_name = "HYPE Qt Console"
     wanted_hotkey = "Ctrl-Alt-J"
 

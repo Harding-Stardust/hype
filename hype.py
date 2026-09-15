@@ -16,6 +16,12 @@ Long-running code will block IDA's UI for their duration while they run on the m
 
 from __future__ import annotations
 
+# TODO: This plugin does NOT work when working with ida_domain from inside an already started jupyter-console:
+# jupyter-console.exe
+# import ida_domain
+# db = ida_domain.Database.open(r"e:/Download/ida_files/tests/appinfo2.dll.i64")
+
+
 __version__ = "2026-09-04 01:12:57"
 __author__ = "Harding"
 __description__ = __doc__
