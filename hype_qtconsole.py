@@ -14,7 +14,7 @@ Edit > Plugins > HYPE Qt Console (default hotkey: Ctrl-Alt-J)
 
 from __future__ import annotations
 
-__version__ = "2026-09-15 10:47:01"
+__version__ = "2026-09-30 00:17:26"
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2026"
@@ -118,7 +118,7 @@ class JupyterConsoleForm(community_base._ida_kernwin.PluginForm):
         self.jupyter_widget.kernel_manager = self.kernel_manager
         self.jupyter_widget.kernel_client = self.kernel_client
         l_layout.addWidget(self.jupyter_widget)
-        community_base.log_print("Jupyter console connected and widget ready", arg_type="INFO")
+        community_base.log_print(f"Loaded HYPE Qt Console version: {__version__} by {__author__}. This version was released {community_base._time_since(__version__)}", arg_type="INFO")
 
     @staticmethod
     def _apply_dark_style(arg_widget: RichJupyterWidget) -> None:
@@ -210,7 +210,7 @@ class JupyterConsolePlugmod(community_base._ida_idaapi.plugmod_t):
 class JupyterConsolePlugin(community_base._ida_idaapi.plugin_t):
     flags = community_base._ida_idaapi.PLUGIN_MULTI
     comment = f"HYPE Qt Console - A Rich Jupyter console connected to an existing kernel. Version {__version__}"
-    help = 'Opens a window insida IDA Pro that connects to the ipykernel started by this IDA Pro'
+    help = 'Opens a window inside IDA Pro that connects to the ipykernel started by this IDA Pro'
     wanted_name = "HYPE Qt Console"
     wanted_hotkey = "Ctrl-Alt-J"
 
