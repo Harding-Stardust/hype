@@ -14,7 +14,7 @@ Edit > Plugins > HYPE Qt Console (default hotkey: Ctrl-Alt-J)
 
 from __future__ import annotations
 
-__version__ = "2026-09-30 00:17:26"
+__version__ = "2026-11-11 00:59:02"
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2026"
@@ -34,9 +34,14 @@ except Exception:
     print(f"{__file__}: Failed to import community_base. You need to install it from https://github.com/Harding-Stardust/community_base")
     raise
 
-from PySide6 import QtWidgets # type: ignore[import-untyped]
+# Headless (idalib/ida_domain or idat) Qt can not be imported: IDA's PySide6 raises ImportError ("can only be used from the GUI version of IDA")
+# and IDA's PyQt5 shim, that qtpy/qtconsole use, raises NotImplementedError. So no Qt imports at all then, init() skips the plugin
+_G_IDA_HAS_GUI: bool = community_base.ida_is_in_gui_mode()
+if _G_IDA_HAS_GUI:
+    from PySide6 import QtWidgets # type: ignore[import-untyped]
 
 try:
+    if not _G_IDA_HAS_GUI: raise ImportError("No GUI (idalib/ida_domain or idat), Qt can not be used")
     import qtconsole.styles # type: ignore[import-untyped]
     from qtconsole.client import QtKernelClient # type: ignore[import-untyped]
     from qtconsole.manager import QtKernelManager # type: ignore[import-untyped]
@@ -214,7 +219,14 @@ class JupyterConsolePlugin(community_base._ida_idaapi.plugin_t):
     wanted_name = "HYPE Qt Console"
     wanted_hotkey = "Ctrl-Alt-J"
 
-    def init(self) -> JupyterConsolePlugmod:
+    def init(self) -> Optional[JupyterConsolePlugmod]:
+        ''' IDA calls this to load the plugin. The console is a Qt window, so without the GUI (idalib/ida_domain or idat) the plugin is skipped.
+
+        @return A JupyterConsolePlugmod(), or None (== PLUGIN_SKIP) when there is no GUI
+        '''
+        if not _G_IDA_HAS_GUI:
+            community_base.log_print("HYPE Qt Console: no GUI (idalib/ida_domain or idat), the plugin is skipped", arg_type="INFO")
+            return None # == PLUGIN_SKIP
         return JupyterConsolePlugmod()
 
 def PLUGIN_ENTRY() -> community_base._ida_idaapi.plugin_t:

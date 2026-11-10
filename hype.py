@@ -22,7 +22,7 @@ deliberately NOT executed - it comes from wherever the IDB came from. If you wan
 
 from __future__ import annotations
 
-__version__ = "2026-09-30 00:17:26"
+__version__ = "2026-11-11 00:59:02"
 __author__ = "Harding"
 __description__ = __doc__
 __copyright__ = "Copyright 2026"
@@ -57,7 +57,6 @@ except Exception:
 
 try:
     import zmq
-    import ipykernel
     from ipykernel.kernelapp import IPKernelApp
     from ipykernel.ipkernel import IPythonKernel
     from ipykernel.zmqshell import ZMQInteractiveShell
@@ -390,7 +389,7 @@ class MainThreadKernel(IPythonKernel):
         if channel == "shell":
             l_kernel_io: dict[str, Any] = _get_kernel_io()
             for l_stream in (l_kernel_io.get("stdout"), l_kernel_io.get("stderr")):
-                if hasattr(l_stream, "set_parent"):
+                if l_stream is not None and hasattr(l_stream, "set_parent"): # dict.get() can give None, mypy does not narrow that away with hasattr()
                     l_stream.set_parent(parent)
 
     async def do_execute(
@@ -821,9 +820,15 @@ class hype_plugin_t(community_base._ida_idaapi.plugin_t):
     wanted_hotkey = ""
 
     def init(self) -> Optional[community_base._ida_idaapi.plugmod_t]:
-        ''' We can do checking and if we don't want to be loaded, we can return None.
-        If we want to be loaded, then we return a ida_idaapi.plugmod_t
+        ''' IDA calls this to load the plugin. Without the GUI (idalib/ida_domain or idat) the plugin is skipped:
+        a kernel in a batch process is of no use, and it would overwrite the connection file of a running IDA with HYPE.
+        The cells run on IDA's main thread (execute_sync), which a headless script keeps busy anyway.
+
+        @return A hype_plugmod_t() that starts the kernel, or None (== PLUGIN_SKIP) when there is no GUI
         '''
+        if not community_base.ida_is_in_gui_mode():
+            community_base.log_print("HYPE: no GUI (idalib/ida_domain or idat), the plugin is skipped and no Jupyter kernel is started", arg_type="INFO")
+            return None # == PLUGIN_SKIP
         return hype_plugmod_t()
 
 def PLUGIN_ENTRY() -> community_base._ida_idaapi.plugin_t:
